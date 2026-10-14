@@ -10,6 +10,12 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 # Frame pointers keep the loader's thread dumps (watchdog, SIGUSR2 sampling) walkable.
 add_compile_options(-fno-omit-frame-pointer)
+# Current MinGW libc++ no longer pulls these in transitively; third-party code
+# (FFX 1.1.4: _countof, swprintf_s, log2, placement new, std::mutex; sirit:
+# std::abort) relies on it.
+if (WIN32)
+    add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:SHELL:-include cstdlib -include cwchar -include cmath -include new -include mutex>")
+endif()
 
 # bbport: link-time optimization (BB_LTO, default on) and profile-guided optimization
 # (BB_PGO: off, generate = instrumented build writing into BB_PGO_DIR, use = build with that
