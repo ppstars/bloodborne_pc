@@ -22,6 +22,7 @@ public:
         // Optional: only used for diagnostics in the log.
         decltype(&xessGetVersion) version{};
         decltype(&xessGetIntelXeFXVersion) xefx_version{};
+        decltype(&xessSetLoggingCallback) logging{};
     };
     static Xess* Get();
     ~Xess();

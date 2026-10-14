@@ -52,6 +52,10 @@ bool Extensions(const char* const* names,u32 count,
             enabled.push_back(name.c_str());
     return true;
 }
+void SdkLog(const char* message,xess_logging_level_t level) {
+    static constexpr const char* names[]{"debug","info","warning","error"};
+    std::printf("XeSS SDK [%s]: %s\n",unsigned(level)<4 ? names[level] : "?",message ? message : "");
+}
 xess_vk_image_view_info Image(const Xess::Resource& r) {
     return {VkImageView(r.view),VkImage(r.image),{VkImageAspectFlags(r.aspect),0,1,0,1},
             VkFormat(r.format),r.width,r.height};
@@ -75,6 +79,7 @@ Xess* Xess::Get() {
         IMPORT(init,"xessVKInit");IMPORT(execute,"xessVKExecute");
         IMPORT(velocity,"xessSetVelocityScale");IMPORT(destroy,"xessDestroyContext");
         IMPORT(version,"xessGetVersion");IMPORT(xefx_version,"xessGetIntelXeFXVersion");
+        IMPORT(logging,"xessSetLoggingCallback");
 #undef IMPORT
         if (!api.instance_extensions || !api.device_extensions || !api.device_features ||
             !api.create || !api.init || !api.execute || !api.velocity || !api.destroy) {
@@ -156,6 +161,11 @@ bool Xess::CreateFeature(const FeatureDesc& desc) {
     if (!Available() || impl->context) return false;
     if (!impl->Check(impl->api.create(VkInstance(impl->instance),VkPhysicalDevice(impl->physical),
                                     VkDevice(impl->device),&impl->context),"context creation")) return false;
+    // Before init, so the SDK's own report of which implementation it picks is captured.
+    if (impl->api.logging) {
+        const auto result=impl->api.logging(impl->context,XESS_LOGGING_LEVEL_DEBUG,SdkLog);
+        if (result<0) std::printf("XeSS: logging callback unavailable (%d)\n",int(result));
+    }
     xess_vk_init_params_t parameters{};
     parameters.outputResolution={desc.output_width,desc.output_height};
     parameters.qualitySetting=QualityForScale(float(desc.output_width)/desc.input_width);
@@ -170,11 +180,15 @@ bool Xess::CreateFeature(const FeatureDesc& desc) {
     // The Intel XeFX library is only loaded for the XMX (Intel Arc) path;
     // on the DP4a fallback the query fails or reports 0.0.0.
     xess_version_t xefx{};
-    if (impl->api.xefx_version && impl->api.xefx_version(impl->context,&xefx)>=0 &&
-        (xefx.major || xefx.minor || xefx.patch))
+    const int xefx_result=impl->api.xefx_version ? int(impl->api.xefx_version(impl->context,&xefx)) : -999;
+    std::printf("XeSS: xessGetIntelXeFXVersion result=%d version=%u.%u.%u\n",xefx_result,
+                xefx.major,xefx.minor,xefx.patch);
+    if (xefx_result>=0 && (xefx.major || xefx.minor || xefx.patch))
         std::printf("XeSS: Intel XeFX %u.%u.%u loaded -> XMX path\n",xefx.major,xefx.minor,xefx.patch);
+    else if (xefx_result>=0)
+        std::printf("XeSS: Intel XeFX reports 0.0.0 -> cross-vendor (DP4a) implementation\n");
     else
-        std::printf("XeSS: Intel XeFX not loaded -> DP4a fallback (no XMX)\n");
+        std::printf("XeSS: Intel XeFX query failed -> implementation unknown\n");
     return true;
 }
 bool Xess::Evaluate(vk::CommandBuffer command,const Frame& frame) {
