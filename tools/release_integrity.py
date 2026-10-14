@@ -223,7 +223,7 @@ def validate(package, *, expected_version=None, repo=None, require_sidecar=False
             repo = Path(repo)
             def git(*args, env=None):
                 return subprocess.check_output(['git', *args], cwd=repo, env=env)
-            require(git('rev-parse', commit+'^{tree}').decode().strip() == tree, 'Source commit/tree mismatch')
+            require(git('log', '-1', '--format=%T', commit).decode().strip() == tree, 'Source commit/tree mismatch')
             require(git('show', commit+':launcher/bbport_launcher_win.py') == read(launcher),
                     'Launcher source differs from its recorded commit')
             require(git('show', commit+':'+notes_path) == notes.encode(), 'Release notes differ from their recorded commit')
