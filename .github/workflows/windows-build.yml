@@ -17,6 +17,10 @@ jobs:
       # Several scripts/tests read UTF-8 files without an explicit encoding.
       PYTHONUTF8: '1'
     steps:
+      # Keep LF in the working tree: packaging runs MSYS2 git, which would
+      # otherwise see every CRLF-converted file as modified.
+      - name: Disable CRLF conversion
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
