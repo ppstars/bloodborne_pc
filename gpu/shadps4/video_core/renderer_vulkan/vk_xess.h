@@ -19,6 +19,9 @@ public:
         decltype(&xessVKExecute) execute{};
         decltype(&xessSetVelocityScale) velocity{};
         decltype(&xessDestroyContext) destroy{};
+        // Optional: only used for diagnostics in the log.
+        decltype(&xessGetVersion) version{};
+        decltype(&xessGetIntelXeFXVersion) xefx_version{};
     };
     static Xess* Get();
     ~Xess();

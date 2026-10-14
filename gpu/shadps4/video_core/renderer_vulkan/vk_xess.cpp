@@ -74,11 +74,18 @@ Xess* Xess::Get() {
         IMPORT(device_features,"xessVKGetRequiredDeviceFeatures");IMPORT(create,"xessVKCreateContext");
         IMPORT(init,"xessVKInit");IMPORT(execute,"xessVKExecute");
         IMPORT(velocity,"xessSetVelocityScale");IMPORT(destroy,"xessDestroyContext");
+        IMPORT(version,"xessGetVersion");IMPORT(xefx_version,"xessGetIntelXeFXVersion");
 #undef IMPORT
         if (!api.instance_extensions || !api.device_extensions || !api.device_features ||
             !api.create || !api.init || !api.execute || !api.velocity || !api.destroy) {
             FreeLibrary(module);return nullptr;
         }
+        xess_version_t version{};
+        if (api.version && api.version(&version)>=0)
+            std::printf("XeSS: libxess.dll %u.%u.%u loaded from %ls\n",version.major,version.minor,
+                        version.patch,path.c_str());
+        else
+            std::printf("XeSS: libxess.dll loaded from %ls (version unknown)\n",path.c_str());
         // Keep the library loaded while Vulkan device/SDK-owned chains exist.
         auto* value=new Xess(api);
         std::atexit([] { if (auto* value=Get()) value->Shutdown(); });
@@ -126,6 +133,11 @@ void Xess::Initialize(vk::Instance instance,vk::PhysicalDevice physical,vk::Devi
     impl->instance=instance;impl->physical=physical;impl->device=device;
     impl->ready=impl->eligible && impl->instance_ready && impl->features_ready;
     BbSettings::Get().xess_supported=impl->ready;
+    if (physical) {
+        const auto properties=physical.getProperties();
+        std::printf("XeSS: device \"%s\" (vendor 0x%04x), ready=%d\n",properties.deviceName.data(),
+                    properties.vendorID,int(impl->ready));
+    }
 }
 void Xess::Shutdown() {ReleaseFeature();impl->ready=false;impl->device=nullptr;}
 bool Xess::Available() const {return impl->ready;}
@@ -155,6 +167,14 @@ bool Xess::CreateFeature(const FeatureDesc& desc) {
     impl->feature=desc;BbSettings::Get().xess_problem=nullptr;
     std::printf("XeSS: %ux%u -> %ux%u (%s)\n",desc.input_width,desc.input_height,
                 desc.output_width,desc.output_height,desc.hdr ? "linear HDR" : "LDR");
+    // The Intel XeFX library is only loaded for the XMX (Intel Arc) path;
+    // on the DP4a fallback the query fails or reports 0.0.0.
+    xess_version_t xefx{};
+    if (impl->api.xefx_version && impl->api.xefx_version(impl->context,&xefx)>=0 &&
+        (xefx.major || xefx.minor || xefx.patch))
+        std::printf("XeSS: Intel XeFX %u.%u.%u loaded -> XMX path\n",xefx.major,xefx.minor,xefx.patch);
+    else
+        std::printf("XeSS: Intel XeFX not loaded -> DP4a fallback (no XMX)\n");
     return true;
 }
 bool Xess::Evaluate(vk::CommandBuffer command,const Frame& frame) {
