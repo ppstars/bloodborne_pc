@@ -79,6 +79,16 @@ jobs:
           git status --short --ignore-submodules=all
           git diff --stat --ignore-submodules=all HEAD | tail -20
           "$WINPYTHON" tools/assemble_windows.py --baseline out/dependencies/runtime-baseline.zip --dll-dir "$(cygpath -w /clang64/bin)" --channel "$RELEASE_CHANNEL"
+      - name: Upload unsplit complete package
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: crowned-workshop-complete
+          path: |
+            dist/complete/*.zip
+            dist/complete/*.zip.sha256
+          if-no-files-found: warn
+          retention-days: 14
       - name: Upload candidate and verification files
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
